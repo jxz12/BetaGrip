@@ -10,11 +10,11 @@
 
 #define VERBOSE 1
 
-unsigned GodOfKeyboards::Two2OneD(unsigned row, unsigned col) {
+inline unsigned BetaGrip::Two2OneD(unsigned row, unsigned col) {
     return row*CIRCUMF + col;
 }
 
-GodOfKeyboards::GodOfKeyboards(const std::string& textPath) {
+BetaGrip::BetaGrip(const std::string& textPath) {
     // read in text and count cooccurances between letters
     auto infile = std::ifstream(textPath);
     char c;
@@ -56,14 +56,9 @@ GodOfKeyboards::GodOfKeyboards(const std::string& textPath) {
         char2freq.erase(c);
     }
 
-    for (unsigned i=0; i<CIRCUMF; i++) {
-        for (unsigned j=0; j<CIRCUMF; j++) {
-            auto oneD = Two2OneD(i, j);
-            freqMatrix[oneD] = 0;
-        }
-    }
 
     // will break if '\n' not in letters
+    std::fill(freqMatrix.begin(), freqMatrix.end(), 0);
     infile.clear();
     infile.seekg(0);
     char prev;
@@ -99,7 +94,8 @@ GodOfKeyboards::GodOfKeyboards(const std::string& textPath) {
 #endif
 }
 
-std::array<char, CIRCUMF> GodOfKeyboards::BranchAndBound() {
+// an exhaustive search of all permutations
+std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
     auto used = std::array<bool, CIRCUMF>();
     auto order = std::array<unsigned, CIRCUMF>();
     auto result = std::array<char, CIRCUMF>();
@@ -129,7 +125,7 @@ std::array<char, CIRCUMF> GodOfKeyboards::BranchAndBound() {
                     scoreNew += dist * (freqMatrix[k] + freqMatrix[l]);
                 }
                 if (scoreNew >= best) {
-                    continue;  // bound
+                    continue;  // quit early if this branch is a dead end
                 }
                 order[pos] = i;
                 used[i] = true;
@@ -147,4 +143,41 @@ std::array<char, CIRCUMF> GodOfKeyboards::BranchAndBound() {
     }
     DFS(1,0);
     return result;
+}
+
+unsigned BetaGrip::EvalOrder(std::array<unsigned, CIRCUMF> const& order) {
+    unsigned score = 0;
+    for (unsigned pos=0; pos<CIRCUMF; pos++) {
+        for (unsigned pos2=0; pos2<pos; pos2++) {
+            auto dist = pos - pos2;
+            dist = std::min(dist, CIRCUMF-dist);  // clock/anticlockwise
+
+            auto i = order[pos];
+            auto j = order[pos2];
+            auto k = Two2OneD(i,j);
+            auto l = Two2OneD(j,i);
+            score += dist * (freqMatrix[k] + freqMatrix[l]);
+        }
+    }
+    return score;
+}
+
+// simulated annealing
+std::array<char, CIRCUMF> BetaGrip::SimulatedAnnealing(
+    int nIter, float mutationProb, float tempInit, float tempCool
+) {
+    // initialise
+    auto order = std::array<unsigned, CIRCUMF>();
+    for (unsigned i=0; i<CIRCUMF; i++) {
+        order[i] = i;
+    }
+    auto score = EvalOrder(order);
+
+    float temp = tempInit;
+    for (unsigned iter=0; iter<nIter; iter++) {
+        temp *= tempCool;
+        for (unsigned i=0; i<CIRCUMF; i++) {
+
+        }
+    }
 }
