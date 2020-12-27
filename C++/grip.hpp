@@ -1,3 +1,6 @@
+#ifndef GRIP_HPP
+#define GRIP_HPP
+
 #include <string>
 #include <vector>
 #include <array>
@@ -32,5 +35,7 @@ private:
     std::array<unsigned, CIRCUMF*CIRCUMF> freqMatrix;
 
     inline unsigned Two2OneD(unsigned row, unsigned col);
-    unsigned EvalOrder(std::array<unsigned, CIRCUMF> const& order)
+    unsigned EvalScore(std::array<unsigned, CIRCUMF> const& order);
 };
+
+#endif

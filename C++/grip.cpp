@@ -6,7 +6,8 @@
 #include <algorithm>
 #include <functional>
 
-#include "god.hpp"
+#include "grip.hpp"
+#include "randomkit.h"
 
 #define VERBOSE 1
 
@@ -145,7 +146,7 @@ std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
     return result;
 }
 
-unsigned BetaGrip::EvalOrder(std::array<unsigned, CIRCUMF> const& order) {
+unsigned BetaGrip::EvalScore(std::array<unsigned, CIRCUMF> const& order) {
     unsigned score = 0;
     for (unsigned pos=0; pos<CIRCUMF; pos++) {
         for (unsigned pos2=0; pos2<pos; pos2++) {
@@ -168,16 +169,27 @@ std::array<char, CIRCUMF> BetaGrip::SimulatedAnnealing(
 ) {
     // initialise
     auto order = std::array<unsigned, CIRCUMF>();
+    auto result = std::array<char, CIRCUMF>();
     for (unsigned i=0; i<CIRCUMF; i++) {
         order[i] = i;
     }
-    auto score = EvalOrder(order);
+    auto score = EvalScore(order);
 
     float temp = tempInit;
     for (unsigned iter=0; iter<nIter; iter++) {
         temp *= tempCool;
         for (unsigned i=0; i<CIRCUMF; i++) {
-
+            // swap with random probability
+            // a la fisher-yates
+        }
+        auto scoreNew = EvalScore(order);
+        if (scoreNew < score) {  // TODO: or try random temperature threshold
+            for (unsigned i=0; i<CIRCUMF; i++) {
+                result[i] = idx2char[order[i]];
+                std::cout << (result[i]=='\n'? '<' : result[i]);
+            }
+            std::cout << ": " << score << std::endl;
         }
     }
+    return result;
 }
