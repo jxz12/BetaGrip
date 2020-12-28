@@ -1,10 +1,10 @@
-randomkit.o: randomkit.c
+randomkit.o: randomkit.c randomkit.h
 	gcc randomkit.c -c
 
-grip.o: grip.cpp
+grip.o: grip.cpp grip.hpp
 	g++ grip.cpp -std=c++11 -c
 
-main.o: main.cpp
+main.o: main.cpp grip.hpp
 	g++ main.cpp -std=c++11 -c
 
 main: randomkit.o grip.o main.o
@@ -12,3 +12,6 @@ main: randomkit.o grip.o main.o
 
 run: main ../christmas\ carol.txt
 	./main ../christmas\ carol.txt
+
+clean: 
+	rm main *.o

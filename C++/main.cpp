@@ -1,4 +1,5 @@
 #include <iostream>
+#include <ctime>
 
 #include "grip.hpp"
 
@@ -8,6 +9,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
     BetaGrip grip(argv[1]);
-    // auto result = grip.BranchAndBound();
-    auto result = grip.SimulatedAnnealing(10000, .05, 1e3, .99);
+    // auto result = grip.BruteForce();
+    // auto result = grip.SimulatedAnnealing(1e6, 1e6, .99999, 0);
+    auto result = grip.GeneticEvolution(100, 16, 2, 4, 0);
 }

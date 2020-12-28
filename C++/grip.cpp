@@ -1,10 +1,13 @@
 #include <iostream>
 #include <fstream>
 #include <unordered_map>
-#include <cctype>
 #include <vector>
+#include <list>
+#include <array>
+#include <string>
 #include <algorithm>
 #include <functional>
+#include <cctype>
 #include <cmath>
 
 #include "grip.hpp"
@@ -12,7 +15,7 @@
 
 #define VERBOSE 1
 
-inline unsigned BetaGrip::Two2OneD(unsigned row, unsigned col) {
+inline uint BetaGrip::Two2OneD(uint row, uint col) {
     return row*CIRCUMF + col;
 }
 
@@ -39,7 +42,7 @@ BetaGrip::BetaGrip(const std::string& textPath) {
     );
 
     // will break if CIRCUMF > |set(letters)|
-    for (unsigned i=0; i<CIRCUMF; i++) {
+    for (uint i=0; i<CIRCUMF; i++) {
         char c = idx2charAll[i];
         idx2char[i] = c;
         char2idx[c] = i;
@@ -53,7 +56,7 @@ BetaGrip::BetaGrip(const std::string& textPath) {
         }
 #endif
     }
-    for (unsigned i=CIRCUMF; i<idx2charAll.size(); i++) {
+    for (uint i=CIRCUMF; i<idx2charAll.size(); i++) {
         char c = idx2charAll[i];
         char2freq.erase(c);
     }
@@ -78,7 +81,7 @@ BetaGrip::BetaGrip(const std::string& textPath) {
         prev = c;
     }
 #if VERBOSE
-    for (unsigned i=0; i<CIRCUMF; i++) {
+    for (uint i=0; i<CIRCUMF; i++) {
         char c = idx2char[i];
         if (c == '\n') {
             std::cout << "\\n" << ": " << idx2char[i];
@@ -87,7 +90,7 @@ BetaGrip::BetaGrip(const std::string& textPath) {
         } else {
             std::cout << c << ":  " << char2freq[i];
         }
-        for (unsigned j=0; j<CIRCUMF; j++) {
+        for (uint j=0; j<CIRCUMF; j++) {
             auto k = Two2OneD(i, j);
             std::cout << freqMatrix[k] << '\t';
         }
@@ -96,28 +99,39 @@ BetaGrip::BetaGrip(const std::string& textPath) {
 #endif
 }
 
+inline std::string Literal(std::string const& str) {
+    auto lit = str;
+    for (uint i=0; i<str.length(); i++) {
+        if (lit[i] == '\n') {
+            lit[i] = '`';
+        }
+    }
+    return lit;
+}
+
 // an exhaustive search of all permutations
-std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
+std::string BetaGrip::BruteForce() {
     auto used = std::array<bool, CIRCUMF>();
-    auto order = std::array<unsigned, CIRCUMF>();
-    auto result = std::array<char, CIRCUMF>();
-    unsigned best = -1;  // underflows to max int value
+    auto order = std::array<uint, CIRCUMF>();
+    auto result = std::string(CIRCUMF, ' ');
+    uint best = -1;  // underflows to max int value
     
-    std::function<void(unsigned, unsigned)> DFS;
-    DFS = [&](unsigned pos, unsigned cost) {
+    std::function<void(uint, uint)> DFS;
+    DFS = [&](uint pos, uint cost) {
         if (pos >= CIRCUMF) {
-            for (unsigned i=0; i<CIRCUMF; i++) {
+            for (uint i=0; i<CIRCUMF; i++) {
                 result[i] = idx2char[order[i]];
-                std::cout << (result[i]=='\n'? '<' : result[i]);
             }
-            std::cout << ": " << cost << std::endl;
+#if VERBOSE
+            std::cout << Literal(result) << '\t' << cost << std::endl;
+#endif
             best = cost;
             return;
         }
-        for (unsigned i=0; i<CIRCUMF; i++) {
+        for (uint i=0; i<CIRCUMF; i++) {
             if (!used[i]) {
-                unsigned costNew = cost;
-                for (unsigned pos2=0; pos2<pos; pos2++) {
+                uint costNew = cost;
+                for (uint pos2=0; pos2<pos; pos2++) {
                     auto dist = pos - pos2;
                     dist = std::min(dist, CIRCUMF-dist);  // clock/anticlockwise
 
@@ -138,19 +152,18 @@ std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
     };
     // fix first character
     order[0] = 0;
-    result[0] = idx2char[0];
     used[0] = true;
-    for (unsigned i=1; i<CIRCUMF; i++) {
+    for (uint i=1; i<CIRCUMF; i++) {
         used[i] = false;
     }
     DFS(1,0);
     return result;
 }
 
-unsigned BetaGrip::EvalCost(std::array<unsigned, CIRCUMF> const& order) {
-    unsigned cost = 0;
-    for (unsigned pos=0; pos<CIRCUMF; pos++) {
-        for (unsigned pos2=0; pos2<pos; pos2++) {
+uint BetaGrip::EvalCost(std::array<uint, CIRCUMF> const& order) {
+    uint cost = 0;
+    for (uint pos=0; pos<CIRCUMF; pos++) {
+        for (uint pos2=0; pos2<pos; pos2++) {
             auto dist = pos - pos2;
             dist = std::min(dist, CIRCUMF-dist);  // clock/anticlockwise
 
@@ -165,43 +178,48 @@ unsigned BetaGrip::EvalCost(std::array<unsigned, CIRCUMF> const& order) {
 }
 
 // simulated annealing
-std::array<char, CIRCUMF> BetaGrip::SimulatedAnnealing(
-    int nIter, double mutationProb, double tempInit, double tempCool, unsigned long rseed
+std::string BetaGrip::SimulatedAnnealing(
+    uint nIter, double tempInit, double tempCool, ulong rseed
 ) {
-    // initialise
-    auto order = std::array<unsigned, CIRCUMF>();
-    auto result = std::array<char, CIRCUMF>();
-    for (unsigned i=0; i<CIRCUMF; i++) {
+    // initialise ordering
+    auto order = std::array<uint, CIRCUMF>();
+    auto orderBest = order;
+    auto result = std::string(CIRCUMF, ' ');
+    for (uint i=0; i<CIRCUMF; i++) {
         order[i] = i;
     }
-    auto cost = EvalCost(order);
-
+    // Fisher-Yates shuffle for random initialisation
     rk_state rstate;
     rk_seed(rseed, &rstate);
+    FYShuffle(order, rstate);
+    auto cost = EvalCost(order);
+    auto costBest = cost;
 
-    float temp = tempInit;
-    for (unsigned iter=0; iter<nIter; iter++) {
+    double temp = tempInit;
+    for (uint iter=0; iter<nIter; iter++) {
         auto orderNew = order;
-        // swap with random probability
-        // a la fisher-yates
-        for (unsigned i=CIRCUMF-1; i>0; i--) {
-            auto rand = rk_double(&rstate);
-            if (rand <= mutationProb) {
-                auto j = rk_interval(i, &rstate);
-                unsigned temp = orderNew[i];
-                orderNew[i] = orderNew[j];
-                orderNew[j] = temp;
-            }
+
+        // swap a single pair each time
+        {
+            uint i = rk_interval(CIRCUMF-1, &rstate);
+            uint j;
+            do {
+                j = rk_interval(CIRCUMF-1, &rstate);
+            } while (j == i);
+            uint temp = orderNew[i];
+            orderNew[i] = orderNew[j];
+            orderNew[j] = temp;
         }
+
         // accept new ordering if better
         // or if random acceptance function satisfied
-        unsigned costNew = EvalCost(orderNew);
+        uint costNew = EvalCost(orderNew);
         bool update = false;
         if (costNew < cost) {
             update = true;
         } else {
-            double costDelta = costNew - cost; // no worry about unsigned as delta>=0
-            auto rand = rk_double(&rstate);
+            double costDelta = costNew - cost; // no worry about sign as delta>=0
+            double rand = rk_double(&rstate);
             if (exp(-costDelta/temp) > rand) {
                 update = true;
             }
@@ -210,14 +228,63 @@ std::array<char, CIRCUMF> BetaGrip::SimulatedAnnealing(
         if (update) {
             order = orderNew;
             cost = costNew;
-            for (unsigned i=0; i<CIRCUMF; i++) {
+        }
+        // save best found so far
+        if (cost < costBest) {
+            for (uint i=0; i<CIRCUMF; i++) {
                 result[i] = idx2char[order[i]];
-                std::cout << (result[i]=='\n'? '<' : result[i]);
             }
-            std::cout << ": " << cost << " t=" << temp << std::endl;
+#if VERBOSE
+            std::cout << Literal(result) << '\t' << cost << "\ti=" << iter << "\tt=" << temp << std::endl;
+#endif
+            costBest = cost;
         }
         // decay temperature
         temp *= tempCool;
+    }
+    return result;
+}
+
+
+std::string BetaGrip::GeneticEvolution(
+    uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed
+) {
+    auto result = std::string(CIRCUMF, ' ');
+    uint costBest = -1;
+
+    // initialise ordering
+    auto geneBase = std::array<uint, CIRCUMF>();
+    for (uint i=0; i<CIRCUMF; i++) {
+        geneBase[i] = i;
+    }
+    rk_state rstate;
+    rk_seed(rseed, &rstate);
+    auto population = std::vector<std::array<uint, CIRCUMF>>();
+    for (uint i=0; i<nPopu; i++) {
+        auto gene = geneBase;
+        FYShuffle(gene, rstate);
+        population.push_back(gene);
+#if VERBOSE
+        auto str = std::string(CIRCUMF, ' ');
+        for (uint i=0; i<CIRCUMF; i++) {
+            str[i] = idx2char[gene[i]];
+        }
+        std::cout << Literal(str) << std::endl;
+#endif
+    }
+
+    for (uint gen=0; gen<nGens; gen++) {
+        // find fitnesses
+        auto costs = std::vector<uint>(nPopu);
+        for (uint i=0; i<nPopu; i++) {
+            costs[i] = EvalCost(population[i]);
+        }
+        // select elite
+        // select tournament
+        // breed
+         // OX1 from "Learning Bayesian Network Structures by searching
+         // for the best ordering with genetic algorithms", 1996
+        // mutate
     }
     return result;
 }

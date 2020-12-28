@@ -6,7 +6,11 @@
 #include <array>
 #include <unordered_map>
 
-#define CIRCUMF 16
+#include "randomkit.h"
+
+#define CIRCUMF 32
+#define uint unsigned int
+#define ulong unsigned long
 
 /*
 places letters around a wheel
@@ -24,18 +28,29 @@ the wheel.
 class BetaGrip {
 public:
     BetaGrip(const std::string& textPath);  // TODO: multiple text files
-    std::array<char, CIRCUMF> BranchAndBound();
-    std::array<char, CIRCUMF> SimulatedAnnealing(int nIter, double mutationProb, double tempInit, double tempCool, unsigned long rseed=0);
-    std::array<char, CIRCUMF> GeneticEvolution(int nIter, double mutationProb);
+    std::string BruteForce();
+    std::string SimulatedAnnealing(uint nIter, double tempInit, double tempCool, ulong rseed=0);
+    std::string GeneticEvolution(uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed=0);
 
 private:
-    std::unordered_map<char, unsigned> char2freq;
-    std::unordered_map<char, unsigned> char2idx;
+    std::unordered_map<char, uint> char2freq;
+    std::unordered_map<char, uint> char2idx;
     std::array<char, CIRCUMF> idx2char;
-    std::array<unsigned, CIRCUMF*CIRCUMF> freqMatrix;
+    std::array<uint, CIRCUMF*CIRCUMF> freqMatrix;
 
-    inline unsigned Two2OneD(unsigned row, unsigned col);
-    unsigned EvalCost(std::array<unsigned, CIRCUMF> const& order);
+    inline uint Two2OneD(uint row, uint col);
+    uint EvalCost(std::array<uint, CIRCUMF> const& order);
+
+    template<typename T, size_t N>
+    void FYShuffle(std::array<T, N>& arr, rk_state& rstate) {
+        for (uint i=CIRCUMF-1; i>0; i--)
+        {
+            uint j = rk_interval(i, &rstate);
+            auto temp = arr[i];
+            arr[i] = arr[j];
+            arr[j] = temp;
+        }
+    }
 };
 
 #endif
