@@ -15,7 +15,7 @@
 
 #define VERBOSE 1
 
-inline uint BetaGrip::Two2OneD(uint row, uint col) {
+inline uint BetaGrip::Two2OneD(uint const& row, uint const& col) {
     return row*CIRCUMF + col;
 }
 
@@ -35,11 +35,9 @@ BetaGrip::BetaGrip(const std::string& textPath) {
     for (auto const& pair: char2freq) {
         idx2charAll.push_back(pair.first);
     }
-    std::sort(idx2charAll.begin(), idx2charAll.end(), [this](
-        char const& a, char const& b) {
-            return char2freq[a] > char2freq[b];
-        }
-    );
+    std::sort(idx2charAll.begin(), idx2charAll.end(), [this](char a, char b) {
+        return char2freq[a] > char2freq[b];
+    });
 
     // will break if CIRCUMF > |set(letters)|
     for (uint i=0; i<CIRCUMF; i++) {
@@ -60,7 +58,6 @@ BetaGrip::BetaGrip(const std::string& textPath) {
         char c = idx2charAll[i];
         char2freq.erase(c);
     }
-
 
     // will break if '\n' not in letters
     std::fill(freqMatrix.begin(), freqMatrix.end(), 0);
@@ -99,19 +96,26 @@ BetaGrip::BetaGrip(const std::string& textPath) {
 #endif
 }
 
-inline std::string Literal(std::string const& str) {
-    auto lit = str;
-    for (uint i=0; i<str.length(); i++) {
-        if (lit[i] == '\n') {
-            lit[i] = '`';
-        }
+inline std::string BetaGrip::Idxs2String(std::array<uint, CIRCUMF> const& order) {
+    auto str = std::string(CIRCUMF, ' ');
+    for (uint i=0; i<CIRCUMF; i++) {
+        char c = idx2char[order[i]];
+        str[i] = c;
     }
-    return lit;
+#if VERBOSE
+    for (uint i=0; i<CIRCUMF; i++) {
+        std::cout << (str[i]=='\n'? '_':str[i]);
+    }
+    std::cout << std::endl;
+#endif
+    return str;
 }
 
 // an exhaustive search of all permutations
 std::string BetaGrip::BruteForce() {
     auto used = std::array<bool, CIRCUMF>();
+    std::fill(used.begin(), used.end(), false);
+
     auto order = std::array<uint, CIRCUMF>();
     auto result = std::string(CIRCUMF, ' ');
     uint best = -1;  // underflows to max int value
@@ -119,12 +123,7 @@ std::string BetaGrip::BruteForce() {
     std::function<void(uint, uint)> DFS;
     DFS = [&](uint pos, uint cost) {
         if (pos >= CIRCUMF) {
-            for (uint i=0; i<CIRCUMF; i++) {
-                result[i] = idx2char[order[i]];
-            }
-#if VERBOSE
-            std::cout << Literal(result) << '\t' << cost << std::endl;
-#endif
+            result = Idxs2String(order);
             best = cost;
             return;
         }
@@ -153,9 +152,6 @@ std::string BetaGrip::BruteForce() {
     // fix first character
     order[0] = 0;
     used[0] = true;
-    for (uint i=1; i<CIRCUMF; i++) {
-        used[i] = false;
-    }
     DFS(1,0);
     return result;
 }
@@ -191,7 +187,7 @@ std::string BetaGrip::SimulatedAnnealing(
     // Fisher-Yates shuffle for random initialisation
     rk_state rstate;
     rk_seed(rseed, &rstate);
-    FYShuffle(order, rstate);
+    FYShuffle(order, CIRCUMF, rstate);
     auto cost = EvalCost(order);
     auto costBest = cost;
 
@@ -231,12 +227,7 @@ std::string BetaGrip::SimulatedAnnealing(
         }
         // save best found so far
         if (cost < costBest) {
-            for (uint i=0; i<CIRCUMF; i++) {
-                result[i] = idx2char[order[i]];
-            }
-#if VERBOSE
-            std::cout << Literal(result) << '\t' << cost << "\ti=" << iter << "\tt=" << temp << std::endl;
-#endif
+            result = Idxs2String(order);
             costBest = cost;
         }
         // decay temperature
@@ -252,38 +243,69 @@ std::string BetaGrip::GeneticEvolution(
     auto result = std::string(CIRCUMF, ' ');
     uint costBest = -1;
 
-    // initialise ordering
+    // initialise population
     auto geneBase = std::array<uint, CIRCUMF>();
     for (uint i=0; i<CIRCUMF; i++) {
         geneBase[i] = i;
     }
     rk_state rstate;
     rk_seed(rseed, &rstate);
-    auto population = std::vector<std::array<uint, CIRCUMF>>();
+    auto population = std::vector<std::array<uint, CIRCUMF>>(nPopu);
+    auto ranked = std::vector<uint>(nPopu);
     for (uint i=0; i<nPopu; i++) {
         auto gene = geneBase;
-        FYShuffle(gene, rstate);
-        population.push_back(gene);
+        FYShuffle(gene, CIRCUMF, rstate);
+        population[i] = std::move(gene);
+        ranked[i] = i;
 #if VERBOSE
-        auto str = std::string(CIRCUMF, ' ');
-        for (uint i=0; i<CIRCUMF; i++) {
-            str[i] = idx2char[gene[i]];
-        }
-        std::cout << Literal(str) << std::endl;
+        std::cout << "initial population:\n";
+        auto str = Idxs2String(gene);
 #endif
     }
 
+    // do evolution
     for (uint gen=0; gen<nGens; gen++) {
-        // find fitnesses
+        // find fitnesses and rank
         auto costs = std::vector<uint>(nPopu);
         for (uint i=0; i<nPopu; i++) {
             costs[i] = EvalCost(population[i]);
         }
-        // select elite
-        // select tournament
-        // breed
-         // OX1 from "Learning Bayesian Network Structures by searching
-         // for the best ordering with genetic algorithms", 1996
+        std::sort(ranked.begin(), ranked.end(), [&costs](uint i, uint j) {
+            return costs[i] < costs[j];
+        });
+        // select top nElite for elitism
+        auto survived = std::vector<bool>(nPopu, false);
+        for (uint i=0; i<nElite; i++) {
+            survived[ranked[i]] = true;
+        }
+        // select with tournament (binary)
+        auto Revive = [&]() {
+            uint player;
+            do {
+                player = rk_interval(nPopu, &rstate);
+            } while (survived[player]);
+            survived[player] = true;
+            return player;
+        };
+        for (uint i=0; i<nMerit; i++) {
+            auto p1 = Revive();
+            auto p2 = Revive();
+            auto loser = costs[p1]>costs[p2]? p1:p2;
+            survived[loser] = false;
+        }
+        // breed using
+        // OX1 from "Learning Bayesian Network Structures by searching
+        // for the best ordering with genetic algorithms", 1996
+        auto survivors = std::vector<uint>();
+        survivors.reserve(nElite+nMerit);
+        for (uint i=0; i<nPopu; i++) {
+            if (survived[i]) {
+                survivors.push_back(i);
+                // std::cout << costs[i] << '\t';
+                // auto str = Idxs2String(population[i]);
+            }
+        }
+        break;
         // mutate
     }
     return result;

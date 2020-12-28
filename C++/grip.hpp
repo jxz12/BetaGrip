@@ -38,19 +38,20 @@ private:
     std::array<char, CIRCUMF> idx2char;
     std::array<uint, CIRCUMF*CIRCUMF> freqMatrix;
 
-    inline uint Two2OneD(uint row, uint col);
-    uint EvalCost(std::array<uint, CIRCUMF> const& order);
-
-    template<typename T, size_t N>
-    void FYShuffle(std::array<T, N>& arr, rk_state& rstate) {
-        for (uint i=CIRCUMF-1; i>0; i--)
-        {
-            uint j = rk_interval(i, &rstate);
-            auto temp = arr[i];
-            arr[i] = arr[j];
-            arr[j] = temp;
-        }
-    }
+    inline uint Two2OneD(uint const& row, uint const& col);
+    inline std::string Idxs2String(std::array<uint, CIRCUMF> const& order);
+    inline uint EvalCost(std::array<uint, CIRCUMF> const& order);
 };
+
+template<typename T>
+void FYShuffle(T& arr, uint size, rk_state& rstate) {
+    for (uint i=size-1; i>0; i--)
+    {
+        uint j = rk_interval(i, &rstate);
+        auto temp = arr[i];
+        arr[i] = arr[j];
+        arr[j] = temp;
+    }
+}
 
 #endif
