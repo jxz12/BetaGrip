@@ -5,6 +5,7 @@
 #include <vector>
 #include <algorithm>
 #include <functional>
+#include <cmath>
 
 #include "grip.hpp"
 #include "randomkit.h"
@@ -103,19 +104,19 @@ std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
     unsigned best = -1;  // underflows to max int value
     
     std::function<void(unsigned, unsigned)> DFS;
-    DFS = [&](unsigned pos, unsigned score) {
+    DFS = [&](unsigned pos, unsigned cost) {
         if (pos >= CIRCUMF) {
             for (unsigned i=0; i<CIRCUMF; i++) {
                 result[i] = idx2char[order[i]];
                 std::cout << (result[i]=='\n'? '<' : result[i]);
             }
-            std::cout << ": " << score << std::endl;
-            best = score;
+            std::cout << ": " << cost << std::endl;
+            best = cost;
             return;
         }
         for (unsigned i=0; i<CIRCUMF; i++) {
             if (!used[i]) {
-                unsigned scoreNew = score;
+                unsigned costNew = cost;
                 for (unsigned pos2=0; pos2<pos; pos2++) {
                     auto dist = pos - pos2;
                     dist = std::min(dist, CIRCUMF-dist);  // clock/anticlockwise
@@ -123,14 +124,14 @@ std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
                     auto j = order[pos2];
                     auto k = Two2OneD(i,j);
                     auto l = Two2OneD(j,i);
-                    scoreNew += dist * (freqMatrix[k] + freqMatrix[l]);
+                    costNew += dist * (freqMatrix[k] + freqMatrix[l]);
                 }
-                if (scoreNew >= best) {
+                if (costNew >= best) {
                     continue;  // quit early if this branch is a dead end
                 }
                 order[pos] = i;
                 used[i] = true;
-                DFS(pos+1, scoreNew);
+                DFS(pos+1, costNew);
                 used[i] = false;
             }
         }
@@ -146,8 +147,8 @@ std::array<char, CIRCUMF> BetaGrip::BranchAndBound() {
     return result;
 }
 
-unsigned BetaGrip::EvalScore(std::array<unsigned, CIRCUMF> const& order) {
-    unsigned score = 0;
+unsigned BetaGrip::EvalCost(std::array<unsigned, CIRCUMF> const& order) {
+    unsigned cost = 0;
     for (unsigned pos=0; pos<CIRCUMF; pos++) {
         for (unsigned pos2=0; pos2<pos; pos2++) {
             auto dist = pos - pos2;
@@ -157,15 +158,15 @@ unsigned BetaGrip::EvalScore(std::array<unsigned, CIRCUMF> const& order) {
             auto j = order[pos2];
             auto k = Two2OneD(i,j);
             auto l = Two2OneD(j,i);
-            score += dist * (freqMatrix[k] + freqMatrix[l]);
+            cost += dist * (freqMatrix[k] + freqMatrix[l]);
         }
     }
-    return score;
+    return cost;
 }
 
 // simulated annealing
 std::array<char, CIRCUMF> BetaGrip::SimulatedAnnealing(
-    int nIter, float mutationProb, float tempInit, float tempCool
+    int nIter, double mutationProb, double tempInit, double tempCool, unsigned long rseed
 ) {
     // initialise
     auto order = std::array<unsigned, CIRCUMF>();
@@ -173,23 +174,50 @@ std::array<char, CIRCUMF> BetaGrip::SimulatedAnnealing(
     for (unsigned i=0; i<CIRCUMF; i++) {
         order[i] = i;
     }
-    auto score = EvalScore(order);
+    auto cost = EvalCost(order);
+
+    rk_state rstate;
+    rk_seed(rseed, &rstate);
 
     float temp = tempInit;
     for (unsigned iter=0; iter<nIter; iter++) {
-        temp *= tempCool;
-        for (unsigned i=0; i<CIRCUMF; i++) {
-            // swap with random probability
-            // a la fisher-yates
+        auto orderNew = order;
+        // swap with random probability
+        // a la fisher-yates
+        for (unsigned i=CIRCUMF-1; i>0; i--) {
+            auto rand = rk_double(&rstate);
+            if (rand <= mutationProb) {
+                auto j = rk_interval(i, &rstate);
+                unsigned temp = orderNew[i];
+                orderNew[i] = orderNew[j];
+                orderNew[j] = temp;
+            }
         }
-        auto scoreNew = EvalScore(order);
-        if (scoreNew < score) {  // TODO: or try random temperature threshold
+        // accept new ordering if better
+        // or if random acceptance function satisfied
+        unsigned costNew = EvalCost(orderNew);
+        bool update = false;
+        if (costNew < cost) {
+            update = true;
+        } else {
+            double costDelta = costNew - cost; // no worry about unsigned as delta>=0
+            auto rand = rk_double(&rstate);
+            if (exp(-costDelta/temp) > rand) {
+                update = true;
+            }
+        }
+        // update ordering depending on above
+        if (update) {
+            order = orderNew;
+            cost = costNew;
             for (unsigned i=0; i<CIRCUMF; i++) {
                 result[i] = idx2char[order[i]];
                 std::cout << (result[i]=='\n'? '<' : result[i]);
             }
-            std::cout << ": " << score << std::endl;
+            std::cout << ": " << cost << " t=" << temp << std::endl;
         }
+        // decay temperature
+        temp *= tempCool;
     }
     return result;
 }

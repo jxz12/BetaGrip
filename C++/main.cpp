@@ -7,6 +7,7 @@ int main(int argc, char* argv[]) {
         std::cout << "not enough arguments" << std::endl;
         return 0;
     }
-    BetaGrip god(argv[1]);
-    auto result = god.BranchAndBound();
+    BetaGrip grip(argv[1]);
+    // auto result = grip.BranchAndBound();
+    auto result = grip.SimulatedAnnealing(10000, .05, 1e3, .99);
 }
