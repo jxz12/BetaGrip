@@ -48,9 +48,7 @@ void FYShuffle(T& arr, uint size, rk_state& rstate) {
     for (uint i=size-1; i>0; i--)
     {
         uint j = rk_interval(i, &rstate);
-        auto temp = arr[i];
-        arr[i] = arr[j];
-        arr[j] = temp;
+        std::swap(arr[i], arr[j]);
     }
 }
 

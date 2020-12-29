@@ -35,7 +35,7 @@ BetaGrip::BetaGrip(const std::string& textPath) {
     for (auto const& pair: char2freq) {
         idx2charAll.push_back(pair.first);
     }
-    std::sort(idx2charAll.begin(), idx2charAll.end(), [this](char a, char b) {
+    std::sort(idx2charAll.begin(), idx2charAll.end(), [&](char a, char b) {
         return char2freq[a] > char2freq[b];
     });
 
@@ -241,7 +241,7 @@ std::string BetaGrip::GeneticEvolution(
     uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed
 ) {
     auto result = std::string(CIRCUMF, ' ');
-    uint costBest = -1;
+    uint costBest = -1;  // underflows to max
 
     // initialise population
     auto geneBase = std::array<uint, CIRCUMF>();
@@ -257,56 +257,100 @@ std::string BetaGrip::GeneticEvolution(
         FYShuffle(gene, CIRCUMF, rstate);
         population[i] = std::move(gene);
         ranked[i] = i;
-#if VERBOSE
-        std::cout << "initial population:\n";
-        auto str = Idxs2String(gene);
-#endif
     }
-
-    // do evolution
-    for (uint gen=0; gen<nGens; gen++) {
-        // find fitnesses and rank
-        auto costs = std::vector<uint>(nPopu);
+    // find fitnesses and rank them
+    auto costs = std::vector<uint>(nPopu);
+    auto Rank = [&]() {
         for (uint i=0; i<nPopu; i++) {
             costs[i] = EvalCost(population[i]);
+            if (costs[i] < costBest) {
+                result = Idxs2String(population[i]);
+                costBest = costs[i];
+            }
         }
         std::sort(ranked.begin(), ranked.end(), [&costs](uint i, uint j) {
             return costs[i] < costs[j];
         });
+#if VERBOSE
+        std::cout << "population:\n";
+        for (uint i=0; i<nPopu; i++) {
+            std::cout << costs[i] << '\t';
+            auto str = Idxs2String(population[i]);
+        }
+#endif
+    };
+    Rank();
+
+    // do evolution
+    for (uint gen=0; gen<nGens; gen++) {
         // select top nElite for elitism
-        auto survived = std::vector<bool>(nPopu, false);
+        auto survivors = std::vector<bool>(nPopu, false);
+        auto populationNew = std::vector<std::array<uint, CIRCUMF>>();
+        populationNew.reserve(nPopu);
         for (uint i=0; i<nElite; i++) {
-            survived[ranked[i]] = true;
+            auto elite = ranked[i];
+            survivors[elite] = true;
+            populationNew.push_back(std::move(population[elite]));
         }
         // select with tournament (binary)
-        auto Revive = [&]() {
+        auto Sample = [&]()->uint {
             uint player;
             do {
-                player = rk_interval(nPopu, &rstate);
-            } while (survived[player]);
-            survived[player] = true;
+                player = rk_interval(nPopu-1, &rstate);
+            } while (survivors[player]);
+            survivors[player] = true;
             return player;
         };
+        auto winners = std::vector<uint>();
+        winners.reserve(nMerit);
         for (uint i=0; i<nMerit; i++) {
-            auto p1 = Revive();
-            auto p2 = Revive();
-            auto loser = costs[p1]>costs[p2]? p1:p2;
-            survived[loser] = false;
+            auto p1 = Sample();
+            auto p2 = Sample();
+            auto winner = costs[p1]<costs[p2]? p1:p2;
+            auto loser = costs[p1]<costs[p2]? p2:p1;
+            survivors[loser] = false;
+            winners.push_back(winner);
         }
         // breed using
         // OX1 from "Learning Bayesian Network Structures by searching
         // for the best ordering with genetic algorithms", 1996
-        auto survivors = std::vector<uint>();
-        survivors.reserve(nElite+nMerit);
-        for (uint i=0; i<nPopu; i++) {
-            if (survived[i]) {
-                survivors.push_back(i);
-                // std::cout << costs[i] << '\t';
-                // auto str = Idxs2String(population[i]);
+        for (uint i=nElite; i<nPopu; i++) {
+            // select 2 winners
+            uint mumIdx = winners[rk_interval(nMerit-1, &rstate)];
+            uint dadIdx = winners[rk_interval(nMerit-1, &rstate)];
+            auto mum = population[mumIdx];
+            auto dad = population[dadIdx];
+            // breed
+            uint mumStart = rk_interval(CIRCUMF-1, &rstate);
+            uint mumEnd = rk_interval(CIRCUMF-1, &rstate);
+            if (mumEnd < mumStart) {
+                std::swap(mumStart, mumEnd);
             }
+            // copy selection from mum
+            auto fromMum = std::vector<bool>(CIRCUMF, false);
+            auto child = std::array<uint, CIRCUMF>();
+            for (uint pos=mumStart; pos<=mumEnd; pos++) {
+                auto inherited = mum[pos];
+                child[pos] = inherited;
+                fromMum[inherited] = true;
+            }
+            // fill in rest from dad
+            uint dadPos = -1;
+            for (uint pos=0; pos<CIRCUMF; pos++) {
+                if (pos < mumStart || pos > mumEnd) {
+                    while (fromMum[dad[++dadPos]]);  // lol
+                    child[pos] = dad[dadPos];
+                }
+            }
+            populationNew.push_back(std::move(child));
         }
-        break;
         // mutate
+        for (uint i=0; i<nPopu; i++) {
+            // TODO: mutations with some probability
+        }
+        population = populationNew;
+        Rank();
+        break;
     }
     return result;
 }
