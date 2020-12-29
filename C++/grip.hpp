@@ -25,9 +25,9 @@ movement, defined as movements around
 the wheel.
 */
 
-class BetaGrip {
+class PeachWheel {
 public:
-    BetaGrip(const std::string& textPath);  // TODO: multiple text files
+    PeachWheel(const std::string& textPath);  // TODO: multiple text files
     std::string BruteForce();
     std::string SimulatedAnnealing(uint nIter, double tempInit, double tempCool, ulong rseed=0);
     std::string GeneticEvolution(uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed=0);

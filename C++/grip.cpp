@@ -15,11 +15,11 @@
 
 #define VERBOSE 1
 
-inline uint BetaGrip::Two2OneD(uint const& row, uint const& col) {
+inline uint PeachWheel::Two2OneD(uint const& row, uint const& col) {
     return row*CIRCUMF + col;
 }
 
-BetaGrip::BetaGrip(const std::string& textPath) {
+PeachWheel::PeachWheel(const std::string& textPath) {
     // read in text and count cooccurances between letters
     auto infile = std::ifstream(textPath);
     char c;
@@ -96,7 +96,7 @@ BetaGrip::BetaGrip(const std::string& textPath) {
 #endif
 }
 
-inline std::string BetaGrip::Idxs2String(std::array<uint, CIRCUMF> const& order) {
+inline std::string PeachWheel::Idxs2String(std::array<uint, CIRCUMF> const& order) {
     auto str = std::string(CIRCUMF, ' ');
     for (uint i=0; i<CIRCUMF; i++) {
         char c = idx2char[order[i]];
@@ -112,7 +112,7 @@ inline std::string BetaGrip::Idxs2String(std::array<uint, CIRCUMF> const& order)
 }
 
 // an exhaustive search of all permutations
-std::string BetaGrip::BruteForce() {
+std::string PeachWheel::BruteForce() {
     auto used = std::array<bool, CIRCUMF>();
     std::fill(used.begin(), used.end(), false);
 
@@ -156,7 +156,7 @@ std::string BetaGrip::BruteForce() {
     return result;
 }
 
-uint BetaGrip::EvalCost(std::array<uint, CIRCUMF> const& order) {
+uint PeachWheel::EvalCost(std::array<uint, CIRCUMF> const& order) {
     uint cost = 0;
     for (uint pos=0; pos<CIRCUMF; pos++) {
         for (uint pos2=0; pos2<pos; pos2++) {
@@ -174,7 +174,7 @@ uint BetaGrip::EvalCost(std::array<uint, CIRCUMF> const& order) {
 }
 
 // simulated annealing
-std::string BetaGrip::SimulatedAnnealing(
+std::string PeachWheel::SimulatedAnnealing(
     uint nIter, double tempInit, double tempCool, ulong rseed
 ) {
     // initialise ordering
@@ -237,7 +237,7 @@ std::string BetaGrip::SimulatedAnnealing(
 }
 
 
-std::string BetaGrip::GeneticEvolution(
+std::string PeachWheel::GeneticEvolution(
     uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed
 ) {
     auto result = std::string(CIRCUMF, ' ');
