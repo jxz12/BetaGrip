@@ -1,7 +1,7 @@
 #include <iostream>
 #include <ctime>
 
-#include "grip.hpp"
+#include "peach.hpp"
 
 int main(int argc, char* argv[]) {
     if (argc < 2) {
