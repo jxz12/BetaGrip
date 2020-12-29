@@ -29,8 +29,9 @@ class PeachWheel {
 public:
     PeachWheel(const std::string& textPath);  // TODO: multiple text files
     std::string BruteForce();
+    std::string RandomSample(uint nIter, ulong rseed=0);
     std::string SimulatedAnnealing(uint nIter, double tempInit, double tempCool, ulong rseed=0);
-    std::string GeneticEvolution(uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed=0);
+    std::string GeneticEvolution(uint nGens, uint nPopu, uint nElite, uint nMerit, double probMut, ulong rseed=0);
 
 private:
     std::unordered_map<char, uint> char2freq;
@@ -45,8 +46,7 @@ private:
 
 template<typename T>
 void FYShuffle(T& arr, uint size, rk_state& rstate) {
-    for (uint i=size-1; i>0; i--)
-    {
+    for (uint i=size-1; i>0; i--) {
         uint j = rk_interval(i, &rstate);
         std::swap(arr[i], arr[j]);
     }

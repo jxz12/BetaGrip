@@ -8,8 +8,9 @@ int main(int argc, char* argv[]) {
         std::cout << "not enough arguments" << std::endl;
         return 0;
     }
-    PeachWheel grip(argv[1]);
-    // auto result = grip.BruteForce();
-    // auto result = grip.SimulatedAnnealing(1e6, 1e6, .99999, 0);
-    auto result = grip.GeneticEvolution(10, 16, 2, 4, 0);
+    PeachWheel wheel(argv[1]);
+    // auto result = wheel.BruteForce();
+    auto result = wheel.RandomSample(1e7, 0);
+    // auto result = wheel.SimulatedAnnealing(1e6, 1e6, .99999, 0);
+    // auto result = wheel.GeneticEvolution(5000, 500, 5, 200, .5, 0);
 }

@@ -106,7 +106,7 @@ inline std::string PeachWheel::Idxs2String(std::array<uint, CIRCUMF> const& orde
     for (uint i=0; i<CIRCUMF; i++) {
         std::cout << (str[i]=='\n'? '_':str[i]);
     }
-    std::cout << std::endl;
+    std::cout << "\tc=" << EvalCost(order) << std::endl;
 #endif
     return str;
 }
@@ -173,6 +173,26 @@ uint PeachWheel::EvalCost(std::array<uint, CIRCUMF> const& order) {
     return cost;
 }
 
+std::string PeachWheel::RandomSample(uint nIter, ulong rseed) {
+    auto order = std::array<uint, CIRCUMF>();
+    for (uint i=0; i<CIRCUMF; i++) {
+        order[i] = i;
+    }
+    auto result = std::string();
+    uint best = -1;  // underflows to max
+    rk_state rstate;
+    rk_seed(rseed, &rstate);
+    for (uint i=0; i<nIter; i++) {
+        FYShuffle(order, CIRCUMF, rstate);
+        auto cost = EvalCost(order);
+        if (cost < best) {
+            result = Idxs2String(order);
+            best = cost;
+        }
+    }
+    return result;
+}
+
 // simulated annealing
 std::string PeachWheel::SimulatedAnnealing(
     uint nIter, double tempInit, double tempCool, ulong rseed
@@ -202,9 +222,7 @@ std::string PeachWheel::SimulatedAnnealing(
             do {
                 j = rk_interval(CIRCUMF-1, &rstate);
             } while (j == i);
-            uint temp = orderNew[i];
-            orderNew[i] = orderNew[j];
-            orderNew[j] = temp;
+            std::swap(orderNew[i], orderNew[j]);
         }
 
         // accept new ordering if better
@@ -237,29 +255,31 @@ std::string PeachWheel::SimulatedAnnealing(
 }
 
 
+// genetic algorithm
+// selection is performed with binary tournament
+// breeding by ordered crossover
+// mutation by chance of single swap per child
 std::string PeachWheel::GeneticEvolution(
-    uint nGens, uint nPopu, uint nElite, uint nMerit, ulong rseed
+    uint nGens, uint nPopu, uint nElite, uint nMerit, double probMut, ulong rseed
 ) {
-    auto result = std::string(CIRCUMF, ' ');
-    uint costBest = -1;  // underflows to max
+    rk_state rstate;
+    rk_seed(rseed, &rstate);
 
     // initialise population
     auto geneBase = std::array<uint, CIRCUMF>();
     for (uint i=0; i<CIRCUMF; i++) {
         geneBase[i] = i;
     }
-    rk_state rstate;
-    rk_seed(rseed, &rstate);
-    auto population = std::vector<std::array<uint, CIRCUMF>>(nPopu);
+    auto population = std::vector<std::array<uint, CIRCUMF>>(nPopu, geneBase);
     auto ranked = std::vector<uint>(nPopu);
     for (uint i=0; i<nPopu; i++) {
-        auto gene = geneBase;
-        FYShuffle(gene, CIRCUMF, rstate);
-        population[i] = std::move(gene);
+        FYShuffle(population[i], CIRCUMF, rstate);
         ranked[i] = i;
     }
     // find fitnesses and rank them
+    auto result = std::string(CIRCUMF, ' ');
     auto costs = std::vector<uint>(nPopu);
+    uint costBest = -1;  // underflows to max
     auto Rank = [&]() {
         for (uint i=0; i<nPopu; i++) {
             costs[i] = EvalCost(population[i]);
@@ -271,13 +291,6 @@ std::string PeachWheel::GeneticEvolution(
         std::sort(ranked.begin(), ranked.end(), [&costs](uint i, uint j) {
             return costs[i] < costs[j];
         });
-#if VERBOSE
-        std::cout << "population:\n";
-        for (uint i=0; i<nPopu; i++) {
-            std::cout << costs[i] << '\t';
-            auto str = Idxs2String(population[i]);
-        }
-#endif
     };
     Rank();
 
@@ -290,7 +303,7 @@ std::string PeachWheel::GeneticEvolution(
         auto populationNew = std::vector<std::array<uint, CIRCUMF>>();
         populationNew.reserve(nPopu);
         for (uint i=0; i<nElite; i++) {
-            auto elite = ranked[i];
+            uint elite = ranked[i];
             parents.push_back(elite);
             survivors[elite] = true;
             populationNew.push_back(population[elite]); // ensures best always kept
@@ -305,10 +318,10 @@ std::string PeachWheel::GeneticEvolution(
             return player;
         };
         for (uint i=0; i<nMerit; i++) {
-            auto p1 = Sample();
-            auto p2 = Sample();
-            auto winner = costs[p1]<costs[p2]? p1:p2;
-            auto loser = costs[p1]<costs[p2]? p2:p1;
+            uint p1 = Sample();
+            uint p2 = Sample();
+            uint winner = costs[p1]<costs[p2]? p1:p2;
+            uint loser = costs[p1]<costs[p2]? p2:p1;
             survivors[loser] = false;
             parents.push_back(winner);
         }
@@ -343,15 +356,20 @@ std::string PeachWheel::GeneticEvolution(
                     child[pos] = dad[dadPos];
                 }
             }
-            // mutate
-            for (uint i=0; i<nPopu; i++) {
-                // TODO: mutate child with some probability
+            // mutate with probability
+            double rand = rk_double(&rstate);
+            if (rand <= probMut) {
+                uint i = rk_interval(CIRCUMF-1, &rstate);
+                uint j;
+                do {
+                    j = rk_interval(CIRCUMF-1, &rstate);
+                } while (j == i);
+                std::swap(child[i], child[j]);
             }
-            populationNew.push_back(std::move(child));
+            populationNew.push_back(child);
         }
-        population = populationNew;
+        population = std::move(populationNew);
         Rank();
-        break;
     }
     return result;
 }
