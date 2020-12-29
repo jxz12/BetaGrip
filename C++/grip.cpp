@@ -285,12 +285,15 @@ std::string BetaGrip::GeneticEvolution(
     for (uint gen=0; gen<nGens; gen++) {
         // select top nElite for elitism
         auto survivors = std::vector<bool>(nPopu, false);
+        auto parents = std::vector<uint>();
+        parents.reserve(nElite+nMerit);
         auto populationNew = std::vector<std::array<uint, CIRCUMF>>();
         populationNew.reserve(nPopu);
         for (uint i=0; i<nElite; i++) {
             auto elite = ranked[i];
+            parents.push_back(elite);
             survivors[elite] = true;
-            populationNew.push_back(std::move(population[elite]));
+            populationNew.push_back(population[elite]); // ensures best always kept
         }
         // select with tournament (binary)
         auto Sample = [&]()->uint {
@@ -301,23 +304,21 @@ std::string BetaGrip::GeneticEvolution(
             survivors[player] = true;
             return player;
         };
-        auto winners = std::vector<uint>();
-        winners.reserve(nMerit);
         for (uint i=0; i<nMerit; i++) {
             auto p1 = Sample();
             auto p2 = Sample();
             auto winner = costs[p1]<costs[p2]? p1:p2;
             auto loser = costs[p1]<costs[p2]? p2:p1;
             survivors[loser] = false;
-            winners.push_back(winner);
+            parents.push_back(winner);
         }
         // breed using
         // OX1 from "Learning Bayesian Network Structures by searching
         // for the best ordering with genetic algorithms", 1996
         for (uint i=nElite; i<nPopu; i++) {
-            // select 2 winners
-            uint mumIdx = winners[rk_interval(nMerit-1, &rstate)];
-            uint dadIdx = winners[rk_interval(nMerit-1, &rstate)];
+            // select 2 parents
+            uint mumIdx = parents[rk_interval(nMerit-1, &rstate)];
+            uint dadIdx = parents[rk_interval(nMerit-1, &rstate)];
             auto mum = population[mumIdx];
             auto dad = population[dadIdx];
             // breed
@@ -342,11 +343,11 @@ std::string BetaGrip::GeneticEvolution(
                     child[pos] = dad[dadPos];
                 }
             }
+            // mutate
+            for (uint i=0; i<nPopu; i++) {
+                // TODO: mutate child with some probability
+            }
             populationNew.push_back(std::move(child));
-        }
-        // mutate
-        for (uint i=0; i<nPopu; i++) {
-            // TODO: mutations with some probability
         }
         population = populationNew;
         Rank();
